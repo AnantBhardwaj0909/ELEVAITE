@@ -1,309 +1,79 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { format, parse } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import {
   Card,
   CardContent,
-  CardFooter,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { entrySchema } from "@/app/lib/schema";
-import { Sparkles, PlusCircle, X, Pencil, Save, Loader2 } from "lucide-react";
-import { improveWithAI } from "@/actions/resume";
-import { toast } from "sonner";
-import useFetch from "@/hooks/use-fetch";
+import { useEffect, useState } from "react";
+import { format } from "date-fns";
 
-const formatDisplayDate = (dateString) => {
-  if (!dateString) return "";
-  const date = parse(dateString, "yyyy-MM", new Date());
-  return format(date, "MMM yyyy");
-};
-
-export function EntryForm({ type, entries, onChange }) {
-  const [isAdding, setIsAdding] = useState(false);
-
-  const {
-    register,
-    handleSubmit: handleValidation,
-    formState: { errors },
-    reset,
-    watch,
-    setValue,
-  } = useForm({
-    resolver: zodResolver(entrySchema),
-    defaultValues: {
-      title: "",
-      organization: "",
-      startDate: "",
-      endDate: "",
-      description: "",
-      current: false,
-    },
-  });
-
-  const current = watch("current");
-
-  const handleAdd = handleValidation((data) => {
-    const formattedEntry = {
-      ...data,
-      startDate: formatDisplayDate(data.startDate),
-      endDate: data.current ? "" : formatDisplayDate(data.endDate),
-    };
-
-    onChange([...entries, formattedEntry]);
-
-    reset();
-    setIsAdding(false);
-  });
-
-  const handleDelete = (index) => {
-    const newEntries = entries.filter((_, i) => i !== index);
-    onChange(newEntries);
-  };
-
-  const {
-    loading: isImproving,
-    fn: improveWithAIFn,
-    data: improvedContent,
-    error: improveError,
-  } = useFetch(improveWithAI);
-
-  const handleImproveDescription = async () => {
-    const description = watch("description");
-    const position = watch("title");
-    const organization = watch("organization");
-  
-    // Validate required fields
-    if (!description?.trim()) {
-      toast.error("Please enter a description first");
-      return;
-    }
-    
-    if (!position?.trim()) {
-      toast.error("Please enter a position/title first");
-      return;
-    }
-  
-    if (!organization?.trim()) {
-      toast.error("Please enter an organization/company name");
-      return;
-    }
-  
-    try {
-      console.log("Improving description with context:", {
-        description,
-        position,
-        organization
-      });
-  
-      const improved = await improveWithAIFn({
-        current: description,
-        type: type.toLowerCase(),
-        position: position.trim(),
-        organization: organization.trim()
-      });
-  
-      if (!improved?.includes(position) || !improved?.includes(organization)) {
-        console.warn("AI response missing position/organization:", improved);
-        toast.warning("AI suggestions might need manual adjustment");
-      }
-  
-      console.log("AI Improvement result:", improved);
-      return improved;
-  
-    } catch (error) {
-      console.error("Improvement error:", error);
-      toast.error(error.message || "Failed to generate improvement");
-      throw error;
-    }
-  };
-
+export default function PerformanceChart({ assessments }) {
+  const [chartData, setChartData] = useState([]);
+  console.log(assessments);
   useEffect(() => {
-    if (improvedContent && !isImproving) {
-      setValue("description", improvedContent);
-      toast.success("Description improved successfully!");
+    if (assessments?.length) {
+      const formattedData = assessments.map((assessment) => ({
+        date: format(new Date(assessment.createdAt), "MMM dd, HH:mm"),
+        score: Number(assessment.quizScore) || 0,
+      }));
+      setChartData(formattedData);
     }
-    if (improveError) {
-      console.error("Improve error:", improveError);
-      toast.error(improveError.message || "Failed to improve description");
-    }
-  }, [improvedContent, improveError, isImproving, setValue]);
+  }, [assessments]);
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-4">
-        {entries.map((item, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {item.title} @ {item.organization}
-              </CardTitle>
-              <Button
-                variant="outline"
-                size="icon"
-                type="button"
-                onClick={() => handleDelete(index)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {item.current
-                  ? `${item.startDate} - Present`
-                  : `${item.startDate} - ${item.endDate}`}
-              </p>
-              <p className="mt-2 text-sm whitespace-pre-wrap">
-                {item.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {isAdding && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add {type}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Input
-                  placeholder="Title/Position"
-                  {...register("title")}
-                  error={errors.title}
-                />
-                {errors.title && (
-                  <p className="text-sm text-red-500">{errors.title.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Input
-                  placeholder="Organization/Company"
-                  {...register("organization")}
-                  error={errors.organization}
-                />
-                {errors.organization && (
-                  <p className="text-sm text-red-500">
-                    {errors.organization.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Input
-                  type="month"
-                  {...register("startDate")}
-                  error={errors.startDate}
-                />
-                {errors.startDate && (
-                  <p className="text-sm text-red-500">
-                    {errors.startDate.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Input
-                  type="month"
-                  {...register("endDate")}
-                  disabled={current}
-                  error={errors.endDate}
-                />
-                {errors.endDate && (
-                  <p className="text-sm text-red-500">
-                    {errors.endDate.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="current"
-                {...register("current")}
-                onChange={(e) => {
-                  setValue("current", e.target.checked);
-                  if (e.target.checked) {
-                    setValue("endDate", "");
+    <Card>
+      <CardHeader>
+        <CardTitle className="gradient-title text-3xl md:text-4xl">
+          Performance Trend
+        </CardTitle>
+        <CardDescription>Your quiz scores over time</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis domain={[0, 100]} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload?.length) {
+                    return (
+                      <div className="bg-background border rounded-lg p-2 shadow-md">
+                        <p className="text-sm font-medium">
+                          Score: {payload[0].value}%
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {payload[0].payload.date}
+                        </p>
+                      </div>
+                    );
                   }
+                  return null;
                 }}
               />
-              <label htmlFor="current">Current {type}</label>
-            </div>
-
-            <div className="space-y-2">
-              <Textarea
-                placeholder={`Description of your ${type.toLowerCase()}`}
-                className="h-32"
-                {...register("description")}
-                error={errors.description}
-              />
-              {errors.description && (
-                <p className="text-sm text-red-500">
-                  {errors.description.message}
-                </p>
-              )}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleImproveDescription}
-              disabled={isImproving || !watch("description")}
-            >
-              {isImproving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Improving...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Improve with AI
-                </>
-              )}
-            </Button>
-          </CardContent>
-          <CardFooter className="flex justify-end space-x-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                reset();
-                setIsAdding(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleAdd}>
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add Entry
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {!isAdding && (
-        <Button
-          className="w-full"
-          variant="outline"
-          onClick={() => setIsAdding(true)}
-        >
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Add {type}
-        </Button>
-      )}
-    </div>
+            <Line
+              type="monotone"
+              dataKey="score"
+              stroke="#4f46e5"
+              strokeWidth={2}
+            />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
