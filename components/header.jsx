@@ -62,7 +62,6 @@ const Header =async() => {
                 <span>Mock Interviewer</span>
               </Link></DropdownMenuItem>
           </DropdownMenuContent>
-          </DropdownMenuContent>
         </DropdownMenu>
         <UserButton appearance={{
           elements:{
